@@ -1,56 +1,114 @@
 import streamlit as st
 from openai import OpenAI
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+# CONFIGURACIÓN DE BIENVENIDA PERSONALIZADA
+st.set_page_config(page_title="Chatbot Matemáticas UNAL", page_icon="📚")
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
+# TÍTULO Y BIENVENIDA PERSONALIZADA
+st.title("📚 Chatbot Oficial - Departamento de Matemáticas UNAL")
+
+# ESTE ES EL MENSAJE DE BIENVENIDA QUE PIDES
+st.markdown("""
+### 🎓 ¡Bienvenido al chatbot oficial del Departamento de Matemáticas de la UNAL!
+
+Soy tu asistente virtual especializado en ayudarte con:
+- 📋 Trámites académicos y administrativos
+- 📝 Inscripciones a cursos de matemáticas
+- 📄 Solicitud de certificados y constancias
+- ❓ Preguntas frecuentes sobre el departamento
+- 📅 Información sobre horarios y profesores
+- 🏢 Ubicación y contactos del departamento
+
+**¿En qué puedo ayudarte hoy?** 
+""")
+
+# Información adicional en la barra lateral
+with st.sidebar:
+    st.header("ℹ️ Información del Departamento")
+    st.info(
+        """
+        **Departamento de Matemáticas UNAL**
+        - 📍 Edificio 404, Oficina 201
+        - 📞 Teléfono: (601) 3165000 ext. 16000
+        - 📧 Email: decanatura_matematicas@unal.edu.co
+        - 🕒 Horario: Lunes a Viernes 8am - 5pm
+        """
+    )
+    
+    st.header("🔧 Configuración")
+    # Aquí puedes agregar opciones de configuración si lo deseas
+
+# Configuración de la API Key (puedes guardarla en secrets.toml para no pedirla siempre)
+# Por ahora, mantendremos la opción de ingresarla manualmente
+openai_api_key = st.text_input("🔑 OpenAI API Key", type="password")
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+    st.info("Por favor, ingresa tu API key de OpenAI para continuar.", icon="🗝️")
+    st.stop()
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# Crear el cliente de OpenAI
+client = OpenAI(api_key=openai_api_key)
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Inicializar el historial de mensajes
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        # Mensaje de sistema para enfocar el comportamiento del chatbot
+        {"role": "system", "content": """
+        Eres un asistente virtual especializado del Departamento de Matemáticas de la UNAL.
+        Tu función es ayudar a estudiantes con trámites administrativos y consultas académicas.
+        
+        Información importante que debes conocer:
+        - El departamento ofrece cursos de: Cálculo, Álgebra Lineal, Ecuaciones Diferenciales, etc.
+        - Trámites comunes: inscripción de asignaturas, solicitud de certificados, justificaciones, etc.
+        - Horario de atención: Lunes a Viernes 8am - 5pm
+        - Ubicación: Edificio 404, Oficina 201
+        
+        IMPORTANTE: Responde SIEMPRE en español, de manera amable y profesional.
+        Si no sabes algo, sugiere al estudiante contactar directamente al departamento.
+        """}
+    ]
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
+# Mostrar mensajes anteriores
+for message in st.session_state.messages:
+    if message["role"] != "system":  # No mostrar el mensaje de sistema
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# Área de entrada del usuario
+if prompt := st.chat_input("Escribe tu consulta aquí..."):
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Agregar mensaje del usuario al historial
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+    # Generar respuesta de OpenAI (sin incluir el mensaje de sistema en el historial visible)
+    messages_for_api = [st.session_state.messages[0]] + st.session_state.messages[1:]
+    
+    stream = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages_for_api,
+        stream=True,
+        temperature=0.7,  # Controla la creatividad de las respuestas
+    )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # Mostrar y guardar la respuesta
+    with st.chat_message("assistant"):
+        response = st.write_stream(stream)
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
+# Agregar algunos botones de ayuda rápida (opcional)
+st.divider()
+st.caption("**Consultas rápidas:**")
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("📋 ¿Cómo inscribir un curso?"):
+        st.session_state.messages.append({"role": "user", "content": "¿Cómo inscribir un curso de matemáticas?"})
+        st.rerun()
+with col2:
+    if st.button("📄 Solicitar certificado"):
+        st.session_state.messages.append({"role": "user", "content": "¿Cómo solicito un certificado?"})
+        st.rerun()
+with col3:
+    if st.button("📍 ¿Dónde está el departamento?"):
+        st.session_state.messages.append({"role": "user", "content": "¿Dónde está ubicado el departamento?"})
+        st.rerun()
