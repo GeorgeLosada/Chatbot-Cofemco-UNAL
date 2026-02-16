@@ -7,7 +7,7 @@ st.set_page_config(page_title="Chatbot Matemáticas UNAL", page_icon="📚")
 # TÍTULO Y BIENVENIDA PERSONALIZADA
 st.title("📚 Chatbot Oficial - Departamento de Matemáticas UNAL")
 
-# ESTE ES EL MENSAJE DE BIENVENIDA QUE PIDES
+# Mensaje de bienvenida
 st.markdown("""
 ### 🎓 ¡Bienvenido al chatbot oficial del Departamento de Matemáticas de la UNAL!
 
@@ -36,14 +36,40 @@ with st.sidebar:
     )
     
     st.header("🔧 Configuración")
-    # Aquí puedes agregar opciones de configuración si lo deseas
+    # Mostrar estado de la conexión
+    if "openai_api_key" in st.secrets:
+        st.success("✅ API key configurada correctamente")
+    else:
+        st.error("❌ API key no encontrada en secrets.toml")
 
-# Configuración de la API Key (puedes guardarla en secrets.toml para no pedirla siempre)
-# Por ahora, mantendremos la opción de ingresarla manualmente
-openai_api_key = st.text_input("🔑 OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Por favor, ingresa tu API key de OpenAI para continuar.", icon="🗝️")
-    st.stop()
+# 🔑 **NUEVO: Obtener la API key desde secrets.toml**
+try:
+    # Intentar obtener la API key desde los secretos
+    openai_api_key = st.secrets["OPENAI_API_KEY"]
+    
+    # Opcional: mostrar un mensaje de éxito (puedes ocultarlo después)
+    st.sidebar.success("🔐 Conectado a OpenAI")
+    
+except Exception as e:
+    # Si no encuentra la API key, mostrar error y detener la app
+    st.error("""
+    ⚠️ **Error de configuración**
+    
+    No se encontró la API key de OpenAI. 
+    
+    Por favor, asegúrate de:
+    1. Crear la carpeta `.streamlit` en el directorio de tu proyecto
+    2. Crear el archivo `secrets.toml` dentro de esa carpeta
+    3. Agregar la línea: OPENAI_API_KEY = "tu-api-key-aqui"
+    
+    O puedes continuar ingresando tu API key manualmente:
+    """)
+    
+    # Opción de respaldo: permitir ingreso manual
+    openai_api_key = st.text_input("🔑 Ingresa tu OpenAI API Key manualmente", type="password")
+    
+    if not openai_api_key:
+        st.stop()
 
 # Crear el cliente de OpenAI
 client = OpenAI(api_key=openai_api_key)
@@ -69,7 +95,7 @@ if "messages" not in st.session_state:
 
 # Mostrar mensajes anteriores
 for message in st.session_state.messages:
-    if message["role"] != "system":  # No mostrar el mensaje de sistema
+    if message["role"] != "system":
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
@@ -81,22 +107,26 @@ if prompt := st.chat_input("Escribe tu consulta aquí..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generar respuesta de OpenAI (sin incluir el mensaje de sistema en el historial visible)
+    # Generar respuesta de OpenAI
     messages_for_api = [st.session_state.messages[0]] + st.session_state.messages[1:]
     
-    stream = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages_for_api,
-        stream=True,
-        temperature=0.7,  # Controla la creatividad de las respuestas
-    )
+    try:
+        stream = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages_for_api,
+            stream=True,
+            temperature=0.7,
+        )
 
-    # Mostrar y guardar la respuesta
-    with st.chat_message("assistant"):
-        response = st.write_stream(stream)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+        # Mostrar y guardar la respuesta
+        with st.chat_message("assistant"):
+            response = st.write_stream(stream)
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        
+    except Exception as e:
+        st.error(f"Error al conectar con OpenAI: {str(e)}")
 
-# Agregar algunos botones de ayuda rápida (opcional)
+# Consultas rápidas
 st.divider()
 st.caption("**Consultas rápidas:**")
 col1, col2, col3 = st.columns(3)
